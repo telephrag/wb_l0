@@ -12,6 +12,7 @@ require (
 	github.com/nats-io/nkeys v0.3.0 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/nats-io/stan.go v0.10.3 // indirect
+	github.com/valyala/fastjson v1.6.4-0.20210112210304-6dae91c8e11a // indirect
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
 	golang.org/x/sys v0.0.0-20210806184541-e5e7981a1069 // indirect
 	golang.org/x/text v0.3.7 // indirect

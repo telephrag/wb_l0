@@ -12,6 +12,8 @@ import (
 )
 
 func main() {
+	log.SetFlags(log.Flags() &^ (log.Ldate | log.Ltime))
+
 	sc, err := stan.Connect("test-cluster", "pub", stan.NatsURL("nats://localhost:8223"))
 	if err != nil {
 		log.Fatal(err)
@@ -38,4 +40,6 @@ func main() {
 
 		sc.Publish("orders", data)
 	}
+
+	sc.Publish("orders", []byte("{lol}"))
 }

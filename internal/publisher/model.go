@@ -18,7 +18,7 @@ type Order struct {
 
 	Delivery Delivery `json:"delivery"`
 	Payment  Payment  `json:"payment"`
-	Items    []*Item  `json:"items"`
+	Items    []Item   `json:"items"`
 
 	Locale            string    `json:"locale"`
 	InternalSignature string    `json:"internal_signature"`
