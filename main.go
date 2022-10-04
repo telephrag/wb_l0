@@ -17,7 +17,7 @@ func main() {
 	}
 	defer sc.Close()
 
-	sc.Subscribe("hello", func(msg *stan.Msg) {
+	sc.Subscribe("orders", func(msg *stan.Msg) {
 		fmt.Printf("%s\n", msg.Data)
 	})
 
