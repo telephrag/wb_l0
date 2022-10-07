@@ -1,13 +1,9 @@
 package main
 
 import (
-	"crypto/md5"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
-	"math/rand"
-	"sync/atomic"
 	"time"
 )
 
@@ -67,7 +63,7 @@ type Item struct {
 	Status      int    `json:"status"`
 }
 
-var ordersGenerated int64 = 0
+var ordersGenerated uint64 = 0
 
 var baseOrder *Order = new()
 
@@ -81,17 +77,6 @@ func new() *Order {
 	if err = json.Unmarshal(content, o); err != nil {
 		log.Fatal(err)
 	}
-
-	return o
-}
-
-func nextOrder() *Order {
-	o := baseOrder
-
-	r := rand.New(rand.NewSource(ordersGenerated))
-	atomic.AddInt64(&ordersGenerated, 1)
-	uid := md5.Sum([]byte(fmt.Sprint(r.Int63())))
-	o.OrderUID = fmt.Sprint(uid)
 
 	return o
 }
