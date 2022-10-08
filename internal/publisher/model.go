@@ -63,8 +63,6 @@ type Item struct {
 	Status      int    `json:"status"`
 }
 
-var ordersGenerated uint64 = 0
-
 var baseOrder *Order = new()
 
 func new() *Order {

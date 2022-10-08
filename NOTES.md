@@ -10,3 +10,5 @@
 01. Create generator of random objects of type `Order`. Make `publisher` stream them along 
     with some junk data.
 02. Implement validation to accept only complete payloads.
+03. Create `Close()` method for each service to close connections to DB and stuff
+04. Why using `Unlock()` inside `cache.PrintIDs()` results in panic?

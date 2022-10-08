@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"l0/cache"
 	"l0/services/subscriber"
 	"log"
 	"os"
@@ -27,6 +28,9 @@ func main() {
 	}
 	defer pool.Close()
 
+	cache := (&cache.OrdersCache{}).Init(CACHE_CAPACITY)
+
+	// Subscriber
 	subCtx, subCancel := context.WithCancel(context.Background())
 
 	subConn, err := pool.Acquire(subCtx)
@@ -34,7 +38,8 @@ func main() {
 		log.Fatalf("Failed to acquire conn from pool: %v\n", err)
 	}
 	defer subConn.Release()
-	subscriber := subscriber.New(sc, "orders", subConn)
+
+	subscriber := (&subscriber.SubscriberService{}).Init(sc, "orders", subConn, cache)
 	if sub, err := subscriber.Run(subCtx, subCancel); err != nil {
 		// do I need to use durable subscription?
 		// do I need to constantly check for connection with nats manually?
@@ -43,7 +48,6 @@ func main() {
 	} else {
 		defer sub.Close()
 	}
-
 	// TODO: orders.Run()
 
 	interrupt := make(chan os.Signal, 1)

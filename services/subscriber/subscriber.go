@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"l0/cache"
 	"l0/services/model"
 	"log"
 
@@ -14,17 +15,24 @@ import (
 )
 
 type SubscriberService struct {
-	StanConn    stan.Conn
-	StanSubject string
-	DBConn      *pgxpool.Conn
+	stanConn    stan.Conn
+	stanSubject string
+	dbConn      *pgxpool.Conn
+	cache       *cache.OrdersCache
 }
 
-func New(sc stan.Conn, stanSubject string, dbConn *pgxpool.Conn) *SubscriberService {
-	return &SubscriberService{
-		StanConn:    sc,
-		StanSubject: stanSubject,
-		DBConn:      dbConn,
-	}
+func (s *SubscriberService) Init(
+	stanConn stan.Conn,
+	stanSubject string,
+	dbConn *pgxpool.Conn,
+	oc *cache.OrdersCache,
+) (self *SubscriberService) {
+
+	s.stanConn = stanConn
+	s.stanSubject = stanSubject
+	s.dbConn = dbConn
+	s.cache = oc
+	return s
 }
 
 func validatePayload(payload *model.Order) error {
@@ -42,10 +50,10 @@ func validatePayload(payload *model.Order) error {
 func (s *SubscriberService) insertIntoDB(
 	ctx context.Context,
 	payload []byte,
-	trackNumber, uid string,
+	uid, trackNumber string,
 ) error {
 	plJsonb := &pgtype.JSONB{Bytes: payload, Status: pgtype.Present}
-	rows, err := s.DBConn.Query(
+	rows, err := s.dbConn.Query(
 		ctx,
 		"insert into public.order(uid, track_number, record) values ($1, $2, $3)",
 		uid,
@@ -66,7 +74,7 @@ func (s *SubscriberService) insertIntoDB(
 
 func (s *SubscriberService) Run(ctx context.Context, cancel context.CancelFunc) (stan.Subscription, error) {
 
-	sub, err := s.StanConn.Subscribe(s.StanSubject, func(msg *stan.Msg) {
+	sub, err := s.stanConn.Subscribe(s.stanSubject, func(msg *stan.Msg) {
 		select {
 		case <-ctx.Done():
 			return
@@ -83,14 +91,25 @@ func (s *SubscriberService) Run(ctx context.Context, cancel context.CancelFunc) 
 			log.Printf("ERROR: %v\n", err)
 			return
 		}
-		log.Printf("INFO: Order received: %s\n", o.OrderUID)
 
 		if err := s.insertIntoDB(ctx, msg.Data, o.OrderUID, o.TrackNumber); err != nil {
-			log.Printf("%v\n", err)
+			log.Printf("%v: %s\n", err, o.OrderUID)
 			return
 		}
 
-	}, stan.MaxInflight(10), stan.AckWait(ACKWAIT_DURATION))
+		if err := s.cache.Set(o.OrderUID, o); err != nil {
+			log.Printf("ERROR: %v: %s\n", err, o.OrderUID)
+			return
+		}
+		log.Printf("INFO: Order received: %s %v\n", o.OrderUID, o.DateCreated)
+
+		log.Printf("Cache content: %d\n", s.cache.Len())
+		s.cache.PrintIDs()
+	}, // args
+		stan.MaxInflight(10),
+		stan.AckWait(ACKWAIT_DURATION),
+		stan.DurableName(s.stanSubject+"_durable"),
+	)
 	if err != nil {
 		return nil, err
 	}
