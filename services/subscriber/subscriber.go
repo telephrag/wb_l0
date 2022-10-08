@@ -16,12 +16,14 @@ import (
 type SubscriberService struct {
 	StanConn    stan.Conn
 	StanSubject string
+	DBConn      *pgxpool.Conn
 }
 
-func New(sc stan.Conn, stanSubject string) *SubscriberService {
+func New(sc stan.Conn, stanSubject string, dbConn *pgxpool.Conn) *SubscriberService {
 	return &SubscriberService{
 		StanConn:    sc,
 		StanSubject: stanSubject,
+		DBConn:      dbConn,
 	}
 }
 
@@ -37,14 +39,13 @@ func validatePayload(payload *model.Order) error {
 	return nil
 }
 
-func insertIntoDB(
+func (s *SubscriberService) insertIntoDB(
 	ctx context.Context,
-	conn *pgxpool.Conn,
 	payload []byte,
 	trackNumber, uid string,
 ) error {
 	plJsonb := &pgtype.JSONB{Bytes: payload, Status: pgtype.Present}
-	rows, err := conn.Query(
+	rows, err := s.DBConn.Query(
 		ctx,
 		"insert into public.order(uid, track_number, record) values ($1, $2, $3)",
 		uid,
@@ -63,7 +64,7 @@ func insertIntoDB(
 	return nil
 }
 
-func (s *SubscriberService) Run(ctx context.Context, cancel context.CancelFunc, dbConn *pgxpool.Conn) (stan.Subscription, error) {
+func (s *SubscriberService) Run(ctx context.Context, cancel context.CancelFunc) (stan.Subscription, error) {
 
 	sub, err := s.StanConn.Subscribe(s.StanSubject, func(msg *stan.Msg) {
 		select {
@@ -84,7 +85,7 @@ func (s *SubscriberService) Run(ctx context.Context, cancel context.CancelFunc, 
 		}
 		log.Printf("INFO: Order received: %s\n", o.OrderUID)
 
-		if err := insertIntoDB(ctx, dbConn, msg.Data, o.OrderUID, o.TrackNumber); err != nil {
+		if err := s.insertIntoDB(ctx, msg.Data, o.OrderUID, o.TrackNumber); err != nil {
 			log.Printf("%v\n", err)
 			return
 		}

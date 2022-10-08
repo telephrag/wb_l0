@@ -34,8 +34,8 @@ func main() {
 		log.Fatalf("Failed to acquire conn from pool: %v\n", err)
 	}
 	defer subConn.Release()
-	subscriber := subscriber.New(sc, "orders")
-	if sub, err := subscriber.Run(subCtx, subCancel, subConn); err != nil {
+	subscriber := subscriber.New(sc, "orders", subConn)
+	if sub, err := subscriber.Run(subCtx, subCancel); err != nil {
 		// do I need to use durable subscription?
 		// do I need to constantly check for connection with nats manually?
 		// can safely log.Fatal() since we won't do anything else if subscription fails
