@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"l0/cache"
-	"l0/services/model"
+	"l0/service/model"
 	"log"
 
 	"github.com/go-playground/validator/v10"

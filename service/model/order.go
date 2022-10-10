@@ -1,6 +1,8 @@
 package model
 
-import "time"
+import (
+	"time"
+)
 
 type Order struct {
 	OrderUID    string `json:"order_uid" validate:"required"`
@@ -56,4 +58,13 @@ type Item struct {
 	NmID        int    `json:"nm_id" validate:"required"`
 	Brand       string `json:"brand" validate:"required"`
 	Status      int    `json:"status" validate:"required"`
+}
+
+func (o *Order) GetPGScanModel() []interface{} {
+	return []interface{}{
+		&o.OrderUID,
+		&o.TrackNumber,
+		&o.Entry,
+		&o.Delivery,
+	}
 }

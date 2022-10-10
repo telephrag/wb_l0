@@ -3,7 +3,7 @@ package cache
 import (
 	"errors"
 	"fmt"
-	"l0/services/model"
+	"l0/service/model"
 	"sync"
 )
 
@@ -21,6 +21,10 @@ func (oc *OrdersCache) Init(capacity int) (self *OrdersCache) {
 	oc.cap = capacity
 
 	return oc
+}
+
+func (oc *OrdersCache) Cap() int {
+	return oc.cap
 }
 
 func (oc *OrdersCache) Len() int {
@@ -43,7 +47,7 @@ func (oc *OrdersCache) Set(k string, v *model.Order) error {
 		return ErrDuplicate
 	}
 
-	if len(oc.data) == oc.cap {
+	if len(oc.data) == oc.cap { // delete latest record if cache is full
 		var latestorder string
 		for k := range oc.data {
 			latestorder = k
@@ -61,6 +65,15 @@ func (oc *OrdersCache) Set(k string, v *model.Order) error {
 	oc.data[k] = v
 
 	return nil
+}
+
+// Sets underlying map to provided value.
+// Meant to be used for restoring cache contents on service startup.
+func (oc *OrdersCache) SetData(data map[string]*model.Order) {
+	oc.mu.Lock()
+	defer oc.mu.Unlock()
+
+	oc.data = data
 }
 
 func (oc *OrdersCache) PrintIDs() {

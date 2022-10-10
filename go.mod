@@ -3,11 +3,11 @@ module l0
 go 1.18
 
 require (
+	github.com/go-chi/chi v1.5.4
 	github.com/go-playground/validator/v10 v10.11.1
 	github.com/jackc/pgtype v1.12.0
 	github.com/jackc/pgx/v4 v4.17.2
 	github.com/nats-io/stan.go v0.10.3
-	go.etcd.io/bbolt v1.3.6
 )
 
 require (

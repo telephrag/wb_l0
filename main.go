@@ -3,7 +3,8 @@ package main
 import (
 	"context"
 	"l0/cache"
-	"l0/services/subscriber"
+	"l0/service/orders"
+	"l0/service/subscriber"
 	"log"
 	"os"
 	"os/signal"
@@ -32,13 +33,11 @@ func main() {
 
 	// Subscriber
 	subCtx, subCancel := context.WithCancel(context.Background())
-
 	subConn, err := pool.Acquire(subCtx)
 	if err != nil {
 		log.Fatalf("Failed to acquire conn from pool: %v\n", err)
 	}
 	defer subConn.Release()
-
 	subscriber := (&subscriber.SubscriberService{}).Init(sc, "orders", subConn, cache)
 	if sub, err := subscriber.Run(subCtx, subCancel); err != nil {
 		// do I need to use durable subscription?
@@ -48,7 +47,17 @@ func main() {
 	} else {
 		defer sub.Close()
 	}
-	// TODO: orders.Run()
+
+	ordersConn, err := pool.Acquire(subCtx)
+	if err != nil {
+		log.Fatalf("Failed to acquire conn from pool: %v\n", err)
+	}
+	defer ordersConn.Release()
+	orders, err := (&orders.OrdersService{}).Init(ordersConn, cache, "/")
+	if err != nil {
+		log.Fatal(err)
+	}
+	orders.Run()
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, syscall.SIGTERM, syscall.SIGINT)
