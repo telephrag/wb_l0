@@ -3,10 +3,14 @@ package subscriber
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"l0/cache"
 	"l0/service/model"
 	"log"
+	"strings"
+	"sync/atomic"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgtype"
@@ -19,6 +23,7 @@ type SubscriberService struct {
 	stanSubject string
 	dbConn      *pgxpool.Conn
 	cache       *cache.OrdersCache
+	running     int32
 }
 
 func (s *SubscriberService) Init(
@@ -35,6 +40,8 @@ func (s *SubscriberService) Init(
 	return s
 }
 
+var ErrInvalidOrderUID = errors.New("illegal symbols in order uid")
+
 func validatePayload(payload *model.Order) error {
 	if err := validator.New().Struct(payload); err != nil {
 		if vErr, ok := err.(validator.ValidationErrors); !ok {
@@ -42,6 +49,10 @@ func validatePayload(payload *model.Order) error {
 		} else {
 			return vErr
 		}
+	}
+
+	if strings.ContainsAny(payload.OrderUID, "{}/.,") {
+		return ErrInvalidOrderUID
 	}
 
 	return nil
@@ -80,14 +91,22 @@ func (s *SubscriberService) Run(ctx context.Context, cancel context.CancelFunc) 
 			return
 		default:
 		}
+		atomic.AddInt32(&s.running, 1)
+		defer atomic.AddInt32(&s.running, -1)
 
 		o := &model.Order{}
 		if err := json.Unmarshal(msg.Data, &o); err != nil {
-			log.Print(err)
+			if errAck := msg.Ack(); errAck != nil {
+				err = fmt.Errorf("%w: %s", err, errAck)
+			}
+			log.Printf("ERROR: %v\n", err)
 			return
 		}
 
 		if err := validatePayload(o); err != nil {
+			if errAck := msg.Ack(); errAck != nil {
+				err = fmt.Errorf("%w: %s", err, errAck)
+			}
 			log.Printf("ERROR: %v\n", err)
 			return
 		}
@@ -103,16 +122,29 @@ func (s *SubscriberService) Run(ctx context.Context, cancel context.CancelFunc) 
 		}
 		log.Printf("INFO: Order received: %s %v\n", o.OrderUID, o.DateCreated)
 
-		log.Printf("Cache content: %d\n", s.cache.Len())
-		s.cache.PrintIDs()
+		// log.Printf("Cache content: %d\n", s.cache.Len())
+		// s.cache.PrintIDs()
+
+		// No panic since subscription is durable
+		// thus, we can try again after restart.
+		if err := msg.Ack(); err != nil {
+			log.Printf("ERROR: %s\n", err.Error())
+		}
 	}, // args
 		stan.MaxInflight(10),
 		stan.AckWait(ACKWAIT_DURATION),
 		stan.DurableName(s.stanSubject+"_durable"),
+		stan.SetManualAckMode(),
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	return sub, nil
+}
+
+func (s *SubscriberService) WaitUntilAllDone() {
+	for atomic.LoadInt32(&s.running) != 0 {
+		time.Sleep(time.Millisecond)
+	}
 }

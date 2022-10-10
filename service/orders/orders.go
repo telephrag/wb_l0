@@ -54,6 +54,7 @@ func (s *OrdersService) Init(
 	cache *cache.OrdersCache,
 	endpoint string,
 ) (self *OrdersService, err error) {
+
 	s.dbConn = dbConn
 	s.cache = cache
 	if err := s.restoreCache(); err != nil {
@@ -64,7 +65,11 @@ func (s *OrdersService) Init(
 }
 
 func (s *OrdersService) Run() http.Handler {
-	s.cache.PrintIDs()
+	// s.cache.PrintIDs()
 	r := chi.NewRouter()
-	return r // TODO
+
+	r.With(s.GetOrder).Get("/orders/{id}", s.Dummy) // TODO
+	return r
 }
+
+func (s *OrdersService) Dummy(rw http.ResponseWriter, r *http.Request) {}

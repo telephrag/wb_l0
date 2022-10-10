@@ -6,6 +6,7 @@ import (
 	"l0/service/orders"
 	"l0/service/subscriber"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -38,16 +39,18 @@ func main() {
 		log.Fatalf("Failed to acquire conn from pool: %v\n", err)
 	}
 	defer subConn.Release()
-	subscriber := (&subscriber.SubscriberService{}).Init(sc, "orders", subConn, cache)
+	subscriber := (&subscriber.SubscriberService{}).Init(sc, SUBJECT_NAME, subConn, cache)
 	if sub, err := subscriber.Run(subCtx, subCancel); err != nil {
 		// do I need to use durable subscription?
 		// do I need to constantly check for connection with nats manually?
 		// can safely log.Fatal() since we won't do anything else if subscription fails
 		log.Fatal(err)
 	} else {
+		defer subscriber.WaitUntilAllDone()
 		defer sub.Close()
 	}
 
+	// Orders
 	ordersConn, err := pool.Acquire(subCtx)
 	if err != nil {
 		log.Fatalf("Failed to acquire conn from pool: %v\n", err)
@@ -57,11 +60,17 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	orders.Run()
+	go func() {
+		if err := http.ListenAndServe("localhost:27010", orders.Run()); err != nil {
+			subCancel()
+			log.Print(err)
+			return
+		}
+	}()
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, syscall.SIGTERM, syscall.SIGINT)
 	<-interrupt
 
-	subCancel()
+	subCancel() // can't close pgxpool conn in defer
 }

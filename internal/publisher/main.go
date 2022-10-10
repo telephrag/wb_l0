@@ -29,7 +29,7 @@ func main() {
 	}
 	defer sc.Close()
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 150; i++ {
 
 		time.Sleep(PUBLISH_FREQUENCY)
 
